@@ -4,6 +4,13 @@ import jwt from 'jsonwebtoken'
 import { User } from "../models/user.model.js"
 
 
+// steps
+// get the ascess token fro the cookies or from the req headers
+// the token comes as barrier AccessToken , remove the barrier keyword
+// check if the token is recived or not
+// verify using the jwt.verify methos
+// the decoded token is the user_id
+// if exist return else error
 export const validateJWT = asyncHandler( async (req,res ,next) => 
     {
   try {

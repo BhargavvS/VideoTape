@@ -5,7 +5,7 @@ import { uploadOnCloudinary , deleteFromClodinary} from "../utils/cloudinary.js"
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
 import mongoose , {Schema} from "mongoose";
-import {extractPublicId } from 'cloudinary-build-url';
+// import {extractPublicId } from 'cloudinary-build-url';
 
 const generateRefreshAndAccessTokens = async (userId) => {
   try {
@@ -140,7 +140,7 @@ const loginUser = asyncHandler(async (req, res) => {
 
   const { accessToken, refreshToken } = await generateRefreshAndAccessTokens(
     user._id
-  );
+  );  
 
   const loggedInUser = await User.findById(user._id).select(
     "-password -refreshToken"
@@ -347,7 +347,7 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
 });
 
 const deleteAvatar = asyncHandler(async (req,res) => {
-    const { username } = req.params;
+    const { username } = req.params; // already loggedIn hence using params instead of body
 
     if(!username?.trim()){
       throw new ApiError(400, "username is required");
@@ -366,7 +366,7 @@ const deleteAvatar = asyncHandler(async (req,res) => {
       throw new ApiError('The avatar does not exist')
     }
 
-    const publicId = extractPublicId(url);
+    const publicId = user.getPublicId(url);
     await deleteFromClodinary(publicId);
 
     user.avatar = "";
