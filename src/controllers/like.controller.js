@@ -108,8 +108,8 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
 
     else { 
        const newtweetLike = await Like.create(
-           { tweet : commentId,
-            likedBy : req.user._id}
+            { tweet : tweetId,
+             likedBy : req.user._id}
         )
 
         return res
@@ -125,49 +125,41 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
 
 const getLikedVideos = asyncHandler(async (req, res) => {
     //get all liked videos
-    const likedVideos =  await Like.aggregate( [
+    const likedVideos = await Like.aggregate([
         {
-            $match : {
-                likedBy : req.user._id
+            $match: {
+                likedBy: new mongoose.Types.ObjectId(req.user._id),
+                video: { $exists: true, $ne: null },
             },
         },
         {
-            $lookup : {
-                from : "videos",
-                localField : "video",
-                foreignField : "_id",
-                as : "video"
-            } 
+            $lookup: {
+                from: "videos",
+                localField: "video",
+                foreignField: "_id",
+                as: "video",
+                pipeline: [
+                    {
+                        $lookup: {
+                            from: "users",
+                            localField: "owner",
+                            foreignField: "_id",
+                            as: "owner",
+                            pipeline: [{ $project: { username: 1, fullname: 1, avatar: 1 } }],
+                        },
+                    },
+                    { $addFields: { owner: { $first: "$owner" } } },
+                ],
+            },
         },
-        {
-            $first : "$video"
-        },
-        {
-            $project : {
-                _id : 1 ,
-                title : 1,
-                description : 1,
-                url : 1,
-                thumbnail : 1,
-                likedBy : 1,
-                duration : 1,
-                views : 1
-            }
-        }
-    
+        { $unwind: "$video" },
+        { $replaceRoot: { newRoot: "$video" } },
+        { $sort: { createdAt: -1 } },
     ])
 
-    if(!likedVideos)  {
-        throw new ApiError(500 , "No liked videos found")
-    }
-
     return res
-    .status(200)
-    .json(
-        new ApiResponse(
-            200 , likedVideos , "Liked Videos Fetched Successfully"
-    )
-)
+        .status(200)
+        .json(new ApiResponse(200, likedVideos, "Liked videos fetched successfully"))
 })
 
 export {

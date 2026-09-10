@@ -15,7 +15,7 @@ export const validateJWT = asyncHandler( async (req,res ,next) =>
     {
   try {
     const token  =  req.cookies?.accessToken || req.header
-      ("authorization")?.replace("bearer ","")
+      ("authorization")?.replace(/^bearer\s+/i,"")
   
       if(!token) {
           throw new ApiError(401 , "UnAuthorized request") 
@@ -24,6 +24,10 @@ export const validateJWT = asyncHandler( async (req,res ,next) =>
      const decodedToken =  jwt.verify(token , process.env.ACCESS_TOKEN_SECRET)
   
   const user = await User.findById(decodedToken._id).select("-password -refreshToken")
+
+  if (!user) {
+      throw new ApiError(401, "User no longer exists")
+  }
   
   req.user = user
   

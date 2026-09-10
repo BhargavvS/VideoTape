@@ -42,13 +42,15 @@ const allUserTweet = await Tweet.aggregate(
         [
             {
                 $match: {
-                    owner : userId
+                    owner : new mongoose.Types.ObjectId(userId)
                 }
             },
+            { $sort: { createdAt: -1 } },
             {
                 $project : {
                     content : 1,
-                    owner : 1
+                    owner : 1,
+                    createdAt : 1
                 }
             }
         ]
@@ -75,18 +77,23 @@ const updateTweet = asyncHandler(async (req, res) => {
     }
     const {content} = req.body
 
-    if(!content) {
+    if(!content?.trim()) {
         throw new ApiError(400, "Tweet content is required")
     }
 
+    const existing = await Tweet.findById(tweetId);
+    if (!existing) {
+        throw new ApiError(404, "Tweet not found");
+    }
+    if (existing.owner.toString() !== req.user._id.toString()) {
+        throw new ApiError(403, "You can only edit your own posts");
+    }
+
 const updtaedTweet = await Tweet.findByIdAndUpdate(
-        {
-            _id : tweetId,
-            owner : req.user._id
-        },
+        tweetId,
         {
             $set: {
-                content : content
+                content : content.trim()
             }
         },
         {
@@ -110,16 +117,19 @@ const updtaedTweet = await Tweet.findByIdAndUpdate(
 const deleteTweet = asyncHandler(async (req, res) => {
     //delete tweet
     const {tweetId}  = req.params
-    if(isValidObjectId(tweetId)) {
+    if(!isValidObjectId(tweetId)) {
         throw new ApiError(400, "Invalid Tweet ID")
     }
 
-     await Tweet.findByIdAndDelete(tweetId)(
-        {
-            _id : tweetId,
-            owner : req.user._id
-        }
-    )
+    const existing = await Tweet.findById(tweetId);
+    if (!existing) {
+        throw new ApiError(404, "Tweet not found");
+    }
+    if (existing.owner.toString() !== req.user._id.toString()) {
+        throw new ApiError(403, "You can only delete your own posts");
+    }
+
+    await Tweet.findByIdAndDelete(tweetId)
 
     return res
     .status(200)

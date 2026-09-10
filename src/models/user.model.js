@@ -1,7 +1,6 @@
 import mongoose , {Schema} from "mongoose";
 import bcrypt from "bcryptjs"
 import jwt from "jsonwebtoken"
-import CryptoJS from "crypto-js"
 
 const userSchema = new Schema({
     username:{
@@ -39,10 +38,10 @@ const userSchema = new Schema({
     refreshToken:{
         type:String,
     },
-    watchHistory:{
+    watchHistory:[{
         type: mongoose.Schema.Types.ObjectId,
         ref:"Video"
-    }
+    }]
 }, 
 {
     timestamps: true
@@ -86,10 +85,12 @@ userSchema.methods.generateRefreshToken = function() {
 }
 
 userSchema.methods.getPublicId = function(url) {
-    const bytes = CryptoJS.AES.decrypt(url , process.env.CLOUDINARY_API_SECRET);
-    const decryptedUrl = bytes.toString(CryptoJS.enc.Utf8);
-
-    return decryptedUrl
+    if (!url) return null;
+    // Cloudinary URL format: .../upload/(v12345/)<publicId>.<ext>
+    const parts = url.split("/upload/");
+    if (parts.length < 2) return null;
+    const withoutVersion = parts[1].replace(/^v\d+\//, "");
+    return withoutVersion.replace(/\.[^.]+$/, "");
 }
 
 export const User = mongoose.model("User",userSchema)

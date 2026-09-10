@@ -16,7 +16,7 @@ const toggleSubscription = asyncHandler(async (req, res) => {
 
   const subscribed = await  Subscription.findOne({
         channel : channelId,
-        subscriber : req.User._id
+        subscriber : req.user._id
     })
 
     if(subscribed) {
@@ -36,9 +36,9 @@ const toggleSubscription = asyncHandler(async (req, res) => {
     }
 
     if(!subscribed) {
-         const newSubscription =   await Subscription.create(
-               { subscriber : req.User._id,
-                channel : channelId}
+          const newSubscription =   await Subscription.create(
+                { subscriber : req.user._id,
+                 channel : channelId}
             )
         
             if(!newSubscription) {
@@ -58,11 +58,35 @@ const toggleSubscription = asyncHandler(async (req, res) => {
 // controller to return subscriber list of a channel
 const getUserChannelSubscribers = asyncHandler(async (req, res) => {
     const {channelId} = req.params
+    const id = channelId || req.params.subscriberId;
+    if (!isValidObjectId(id)) {
+        throw new ApiError(400, "Valid channelId is required");
+    }
+
+    const subscribers = await Subscription.find({ channel: id })
+        .populate("subscriber", "username fullname avatar")
+        .sort({ createdAt: -1 });
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, subscribers, "Channel subscribers fetched successfully"));
 })
 
 // controller to return channel list to which user has subscribed
 const getSubscribedChannels = asyncHandler(async (req, res) => {
     const { subscriberId } = req.params
+    const id = subscriberId || req.params.channelId;
+    if (!isValidObjectId(id)) {
+        throw new ApiError(400, "Valid subscriberId is required");
+    }
+
+    const channels = await Subscription.find({ subscriber: id })
+        .populate("channel", "username fullname avatar")
+        .sort({ createdAt: -1 });
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, channels, "Subscribed channels fetched successfully"));
 })
 
 export {

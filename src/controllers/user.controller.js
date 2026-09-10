@@ -66,10 +66,10 @@ const registerUser = asyncHandler(async (req, res) => {
   }
 
   // const avatarLocalPath = req.files?.avatar[0]?.path;
-  const avatarLocalPath = req.files?.avatar[0]?.path;
+  const avatarLocalPath = req.files?.avatar?.[0]?.path;
   // const coverImageLocalPath =  req.files?.coverImage[0]?.path;
 
-  const coverImageLocalPath = null;
+  let coverImageLocalPath = null;
   if (
     req.files &&
     Array.isArray(req.files.coverImage) &&
@@ -108,7 +108,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
   res
     .status(201)
-    .json(new ApiResponse("User created successfully", 200, exsistedUser));
+    .json(new ApiResponse(201, exsistedUser, "User created successfully"));
 });
 
 const loginUser = asyncHandler(async (req, res) => {
@@ -132,7 +132,7 @@ const loginUser = asyncHandler(async (req, res) => {
     throw new ApiError(404, "username or password does not exist ");
   }
 
-  const isPasswordValidate = user.matchpassword(password);
+  const isPasswordValidate = await user.matchpassword(password);
 
   if (!isPasswordValidate) {
     throw new ApiError(401, "username or password does not exist ");
@@ -148,7 +148,8 @@ const loginUser = asyncHandler(async (req, res) => {
 
   const options = {
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
   };
 
   return res
@@ -177,7 +178,8 @@ const loggoutUser = asyncHandler(async (req, res) => {
 
   const options = {
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
   };
 
   return res
@@ -200,23 +202,24 @@ const RefreshAccessToken = asyncHandler(async (req, res) => {
     throw new ApiError(401, "invalid refresh Token");
   }
 
-  const user = User.findById(decodedToken._id);
+  const user = await User.findById(decodedToken._id);
 
   if (!user) {
     throw new ApiError(401, "couldnot find a user");
   }
 
-  if (decodedToken !== user?.refreshToken) {
+  if (token !== user?.refreshToken) {
     throw new ApiError(401, "Invalid Refresh Token");
   }
 
-  const { accessToken, newRefreshToken } = await generateRefreshAndAccessTokens(
+  const { accessToken, refreshToken: newRefreshToken } = await generateRefreshAndAccessTokens(
     user._id
   );
 
   const options = {
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
   };
 
   return res
@@ -233,14 +236,19 @@ const RefreshAccessToken = asyncHandler(async (req, res) => {
 });
 
 const updatePassword = asyncHandler(async (req, res) => {
-  const { oldPasssword, newPassword } = req.body;
+  const { oldPasssword, oldPassword, newPassword } = req.body;
+  const currentPassword = oldPasssword ?? oldPassword;
   const user = await User.findById(req.user._id);
 
   if (!user) {
     throw new ApiError(401, "user doesnot exsit");
   }
 
-  const passwordValidation = user.matchpassword(oldPasssword);
+  if (!currentPassword || !newPassword) {
+    throw new ApiError(400, "Current and new password are required");
+  }
+
+  const passwordValidation = await user.matchpassword(currentPassword);
 
   if (!passwordValidation) {
     throw new ApiError(401, "Entered password is incorrect");
@@ -347,15 +355,7 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
 });
 
 const deleteAvatar = asyncHandler(async (req,res) => {
-    const { username } = req.params; // already loggedIn hence using params instead of body
-
-    if(!username?.trim()){
-      throw new ApiError(400, "username is required");
-    }
-
-    const user = await db.findOne(
-      {username: username?.toLowerCase()},
-    );
+    const user = await User.findById(req.user._id);
 
     if(!user){
       throw new ApiError(404, "user does not exist");
@@ -363,11 +363,13 @@ const deleteAvatar = asyncHandler(async (req,res) => {
 
     const url = user.avatar;
     if(!url){
-      throw new ApiError('The avatar does not exist')
+      throw new ApiError(400, "The avatar does not exist");
     }
 
     const publicId = user.getPublicId(url);
-    await deleteFromClodinary(publicId);
+    if (publicId) {
+      await deleteFromClodinary(publicId);
+    }
 
     user.avatar = "";
     await user.save({validateBeforeSave: false});
@@ -495,15 +497,15 @@ const getWatchHistory = asyncHandler(async (req, res) => {
       },
     },
   ]);
-  console.log(user.username);
-  
+  console.log(user[0]?.username);
+
 
   return res
     .status(200)
     .json(
       new ApiResponse(
         200,
-       [user[0].watchHistoey, user.username ] ,
+        user[0]?.watchHistory || [],
         "watch history fetched successfully"
       )
     );
